@@ -1,4 +1,4 @@
-package com.margo.samples.unidirectional.list.common;
+package com.margo.samples.unidirectional.list.common.lock;
 
 import com.google.common.base.Preconditions;
 import com.google.common.math.IntMath;

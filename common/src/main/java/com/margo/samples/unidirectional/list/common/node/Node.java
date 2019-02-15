@@ -1,4 +1,4 @@
-package com.margo.samples.unidirectional.list.common;
+package com.margo.samples.unidirectional.list.common.node;
 
 public class Node<T> {
     private volatile T value;
@@ -31,8 +31,7 @@ public class Node<T> {
 
     @Override
     public Node<T> clone() {
-        Node<T> clone = new Node<>(this.value, this.next);
-        return clone;
+        return new Node<>(this.value, this.next);
     }
 
     @Override
@@ -43,13 +42,12 @@ public class Node<T> {
         Node<?> node = (Node<?>) o;
 
         return value.equals(node.value);
-//            return next != null ? next.equals(node.next) : node.next == null;
     }
 
     @Override
     public int hashCode() {
         int result = value.hashCode();
-        result = 31 * result + (next != null ? next.hashCode() : 0);
+        result = 31 * result;
         return result;
     }
 }

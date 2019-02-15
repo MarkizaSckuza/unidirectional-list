@@ -1,10 +1,11 @@
 package com.margo.samples.unidirectional.list.fine.grained;
 
-import com.margo.samples.unidirectional.list.common.ListActions;
-import com.margo.samples.unidirectional.list.common.Node;
-import com.margo.samples.unidirectional.list.common.Striped;
-import com.margo.samples.unidirectional.list.common.UnidirectionalList;
-import javafx.util.Pair;
+import com.margo.samples.unidirectional.list.common.*;
+import com.margo.samples.unidirectional.list.common.lock.ListLock;
+import com.margo.samples.unidirectional.list.common.lock.Striped;
+import com.margo.samples.unidirectional.list.common.lock.StripedListLock;
+import com.margo.samples.unidirectional.list.common.node.Node;
+import com.margo.samples.unidirectional.list.common.validator.ListValidator;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.*;
@@ -16,11 +17,15 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     private volatile Node<T> first;
     private int size;
     private int modCount;
+
+    private ListLock<T> listLock;
     private Striped<ReentrantLock> striped = Striped.reentrantLock(DEFAULT_STRIPES_SIZE);
 
     public UnidirectionalArrayList() {
         size = 0;
         modCount = 0;
+
+        listLock = new StripedListLock<T, ReentrantLock>(striped);
     }
 
     public int size() {
@@ -32,7 +37,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean contains(Object o) {
-        checkNotNull(o);
+        ListValidator.validateObjectNotNull(o);
 
         return indexOf(o) != -1;
     }
@@ -54,7 +59,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean add(T t) {
-        checkNotNull(t);
+        ListValidator.validateObjectNotNull(t);
         checkStripesSize();
 
         Node<T> node = new Node<>(t);
@@ -70,7 +75,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
                 }
             }
         } else {
-            Node<T> result = ListActions.findPlaceAndPutStriped(first, null, first, node, striped);
+            Node<T> result = ListActions.findPlaceAndPutConcurrent(first, null, first, node, listLock);
             if (result != null) {
                 synchronized (this) {
                     size++;
@@ -101,134 +106,11 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
         }
     }
 
-//    private boolean findPlaceAndAdd(Node<T> previousNode, Node<T> fromNode, Node<T> newNode) {
-//        Node<T> previous = previousNode == null ? first : previousNode;
-//
-//        for (Node<T> node = fromNode; node != null; node = node.getNext()) {
-//
-//            if (node.getValue().compareTo(newNode.getValue()) == 0) {
-//                Node<T> prev = previous.clone();
-//                Node<T> curr = node.clone();
-//
-//                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-//
-//                ReentrantLock prevLock = striped.get(previous);
-//                ReentrantLock currLock = striped.get(node);
-//                ReentrantLock nextLock = striped.get(node.getNext());
-//
-//                try {
-//                    prevLock.lock();
-//                    currLock.lock();
-//                    nextLock.lock();
-//
-//                    if (compareValues(previous, node, next, prev, curr, next) && node.getValue().compareTo(newNode.getValue()) == 0) {
-//                        newNode.setNext(node.getNext());
-//                        node.setNext(newNode);
-//
-//                        size++;
-//                        modCount++;
-//                        return true;
-//                    }
-//                } finally {
-//                    prevLock.unlock();
-//                    currLock.unlock();
-//                    nextLock.unlock();
-//                }
-//
-//                if (previous != null && node != null) {
-//                    findPlaceAndAdd(previous, node, newNode);
-//                } else {
-//                    findPlaceAndAdd(null, first, newNode);
-//                }
-//
-//            } else if (node.getValue().compareTo(newNode.getValue()) == 1) {
-//
-//                Node<T> prev = previous.clone();
-//                Node<T> curr = node.clone();
-//
-//                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-//
-//                ReentrantLock prevLock = striped.get(previous);
-//                ReentrantLock currLock = striped.get(node);
-//
-//                try {
-//
-//                    prevLock.lock();
-//                    currLock.lock();
-//
-//                    if (compareValues(previous, node, next, prev, curr, next) && node.getValue().compareTo(newNode.getValue()) == 1) {
-//                        newNode.setNext(node);
-//
-//                        if (previous == first) {
-//                            first = newNode;
-//                        } else {
-//                            previous.setNext(newNode);
-//                        }
-//
-//                        size++;
-//                        modCount++;
-//                        return true;
-//                    }
-//                } finally {
-//                    prevLock.unlock();
-//                    currLock.unlock();
-//                }
-//
-//                if (previous != null && node != null) {
-//                    findPlaceAndAdd(previous, node, newNode);
-//                } else {
-//                    findPlaceAndAdd(null, first, newNode);
-//                }
-//
-//            } else if (node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-//
-//                Node<T> prev = previous.clone();
-//                Node<T> curr = node.clone();
-//
-//                ReentrantLock prevLock = striped.get(previous);
-//                ReentrantLock currLock = striped.get(node);
-//
-//                try {
-//                    prevLock.lock();
-//                    currLock.lock();
-//
-//                    if (compareValues(previous, node, null, prev, curr, null) && node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-//                        node.setNext(newNode);
-//
-//                        size++;
-//                        modCount++;
-//                        return true;
-//                    }
-//                } finally {
-//                    prevLock.unlock();
-//                    currLock.unlock();
-//                }
-//
-//                if (previous != null && node != null) {
-//                    findPlaceAndAdd(previous, node, newNode);
-//                } else {
-//                    findPlaceAndAdd(null, first, newNode);
-//                }
-//            }
-//            previous = node;
-//        }
-//
-//        return false;
-//    }
-//
-//    private boolean compareValues(Node<T> previous, Node<T> current, Node<T> next, Node<T> expectedPrevious, Node<T> expectedCurrent, Node<T> expectedNext) {
-//        if (previous.equals(current)) {
-//            return previous.equals(expectedPrevious) && (previous.getNext() == null) || (previous.getNext().equals(expectedPrevious.getNext()) && current.equals(expectedCurrent) && (next == null && expectedNext == null) || next.equals(expectedNext));
-//        } else {
-//            return previous.equals(expectedPrevious) && previous.getNext().equals(expectedCurrent) && current.equals(expectedCurrent) && (next == null && expectedNext == null) || next.equals(expectedNext);
-//        }
-//    }
-
     public boolean remove(Object o) {
-        checkNotNull(o);
+        ListValidator.validateObjectNotNull(o);
         checkStripesSize();
 
-        Node<T> result = ListActions.findPlaceAndRemoveStriped(first, null, first, (T) o, striped);
+        Node<T> result = ListActions.findPlaceAndRemoveConcurrent(first, null, first, (T) o, listLock);
 
         if (result != null) {
             synchronized (this) {
@@ -243,75 +125,8 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
         return false;
     }
 
-//    private boolean findPlaceAndRemoveStriped(Node<T> previousNode, Node<T> fromNode, T value) {
-//        Node<T> previous = previousNode == null ? first : previousNode;
-//
-//        for (Node<T> node = fromNode; node != null; node = node.getNext()) {
-//            if (value.equals(node.getValue())) {
-//                Node<T> prev = previous.clone();
-//                Node<T> curr = node.clone();
-//
-//                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-//
-//                ReentrantLock prevLock = striped.get(previous);
-//                ReentrantLock currLock = striped.get(node);
-//
-//                try {
-//                    prevLock.lock();
-//                    currLock.lock();
-//
-//                    if (node.getNext() != null) {
-//                        ReentrantLock nextLock = striped.get(node.getNext());
-//
-//                        try {
-//                            nextLock.lock();
-//
-//                            if (compareValues(previous, node, next, prev, curr, next)) {
-//                                removeConcreteNode(node, previous);
-//                                return true;
-//                            }
-//                        } finally {
-//                            nextLock.unlock();
-//                        }
-//                    } else {
-//                        if (compareValues(previous, node, next, prev, curr, next)) {
-//                            removeConcreteNode(node, previous);
-//                            return true;
-//                        }
-//                    }
-//                } finally {
-//                    prevLock.unlock();
-//                    currLock.unlock();
-//                }
-//
-//                if (previous != null && node != null) {
-//                    findPlaceAndRemoveStriped(previous, node, value);
-//                } else {
-//                    findPlaceAndRemoveStriped(null, first, value);
-//                }
-//            }
-//            previous = node;
-//        }
-//        return false;
-//    }
-
-//    private T removeConcreteNode(Node<T> node, Node<T> previous) {
-//        if (node == previous && node.getNext() != null) {
-//            first = node.getNext();
-//        } else {
-//            previous.setNext(node.getNext());
-//        }
-//        T value = node.getValue();
-//        node = null;
-//
-//        size--;
-//        modCount++;
-//
-//        return value;
-//    }
-
     public boolean containsAll(Collection<?> c) {
-        checkNotNull(c);
+        ListValidator.validateObjectNotNull(c);
 
         for (Object e : c)
             if (!contains(e))
@@ -320,7 +135,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean addAll(Collection<? extends T> c) {
-        checkNotNull(c);
+        ListValidator.validateObjectNotNull(c);
 
         Object[] array = c.toArray();
         boolean result = false;
@@ -337,7 +152,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean removeAll(Collection<?> c) {
-        checkNotNull(c);
+        ListValidator.validateObjectNotNull(c);
 
         Object[] array = c.toArray();
         boolean result = false;
@@ -360,14 +175,8 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public T get(int index) {
-        checkIndex(index);
+        ListValidator.validateIndex(index, size);
         return ListActions.getNodeWithIndex(index, first).getValue();
-    }
-
-    private void checkIndex(int index) {
-        if (index < 0 || index >= size) {
-            throw new IndexOutOfBoundsException("Index " + index + " is out of bounds of an array");
-        }
     }
 
     public T set(int index, T element) {
@@ -379,10 +188,10 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public T remove(int index) {
-        checkIndex(index);
+        ListValidator.validateIndex(index, size);
         checkStripesSize();
 
-        Node<T> result = ListActions.removeByIndexStriped(index, first, striped);
+        Node<T> result = ListActions.removeByIndexConcurrent(index, first, listLock);
 
         if (result != null) {
             synchronized (this) {
@@ -409,7 +218,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public ListIterator<T> listIterator(int index) {
-        checkIndex(index);
+        ListValidator.validateIndex(index, size);
         return new ListIter(index);
     }
 
@@ -545,10 +354,5 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
             if (modCount != expectedModCount)
                 throw new ConcurrentModificationException();
         }
-    }
-
-    private static void checkNotNull(Object v) {
-        if (v == null)
-            throw new NullPointerException();
     }
 }

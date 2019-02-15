@@ -1,8 +1,9 @@
 package com.margo.samples.unidirectional.list.optimistic;
 
 import com.margo.samples.unidirectional.list.common.ListActions;
-import com.margo.samples.unidirectional.list.common.Node;
+import com.margo.samples.unidirectional.list.common.node.Node;
 import com.margo.samples.unidirectional.list.common.UnidirectionalList;
+import com.margo.samples.unidirectional.list.common.validator.ListValidator;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.*;
@@ -34,7 +35,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean contains(Object o) {
-        ListActions.checkNotNull(o);
+        ListValidator.validateObjectNotNull(o);
 
         return indexOf(o) != -1;
     }
@@ -56,7 +57,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean add(T t) {
-        ListActions.checkNotNull(t);
+        ListValidator.validateObjectNotNull(t);
         return operations.add(new Operation(Action.ADD, t));
     }
 
@@ -113,7 +114,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     private void removeByIndex(Integer index) {
-        checkIndex(index);
+        ListValidator.validateIndex(index, size);
 
         Node<T> previous = first;
         int i = 0;
@@ -129,7 +130,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean containsAll(Collection<?> c) {
-        ListActions.checkNotNull(c);
+        ListValidator.validateObjectNotNull(c);
 
         for (Object e : c)
             if (!contains(e))
@@ -138,7 +139,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public boolean addAll(Collection<? extends T> c) {
-        ListActions.checkNotNull(c);
+        ListValidator.validateObjectNotNull(c);
 
         return operations.add(new Operation(Action.ADD_ALL, c));
     }
@@ -182,14 +183,8 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public T get(int index) {
-        checkIndex(index);
+        ListValidator.validateIndex(index, size);
         return ListActions.getNodeWithIndex(index, first).getValue();
-    }
-
-    private void checkIndex(int index) {
-        if (index < 0 || index >= size) {
-            throw new IndexOutOfBoundsException("Index " + index + " is out of bounds of an array");
-        }
     }
 
     public T set(int index, T element) {
@@ -218,7 +213,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     }
 
     public ListIterator<T> listIterator(int index) {
-        checkIndex(index);
+        ListValidator.validateIndex(index, size);
         return new ListIter(index);
     }
 

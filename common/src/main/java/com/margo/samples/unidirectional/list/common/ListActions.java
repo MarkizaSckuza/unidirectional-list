@@ -1,6 +1,7 @@
 package com.margo.samples.unidirectional.list.common;
 
-import java.util.concurrent.locks.Lock;
+import com.margo.samples.unidirectional.list.common.lock.ListLock;
+import com.margo.samples.unidirectional.list.common.node.Node;
 
 public class ListActions {
 
@@ -56,277 +57,133 @@ public class ListActions {
         return null;
     }
 
-    public static <T extends Comparable<T>> Node<T> findPlaceAndPutSync(Node<T> first, Node<T> previousNode, Node<T> fromNode, Node<T> newNode) {
+    public static <T extends Comparable<T>> Node<T> findPlaceAndPutConcurrent(Node<T> first, Node<T> previousNode, Node<T> fromNode, Node<T> newNode, ListLock<T> listLock) {
         Node<T> previous = previousNode == null ? first : previousNode;
 
         for (Node<T> node = fromNode; node != null; node = node.getNext()) {
             if (node.getValue().compareTo(newNode.getValue()) == 0) {
                 Node<T> prev = previous.clone();
                 Node<T> curr = node.clone();
-                Node<T> next = node.getNext().clone();
-
-                synchronized (previous) {
-                    synchronized (node) {
-                        synchronized (node.getNext()) {
-                            if (compareValues(previous, node, next, prev, curr, next) && node.getValue().compareTo(newNode.getValue()) == 0) {
-                                newNode.setNext(node.getNext());
-                                node.setNext(newNode);
-
-                                return first;
-                            }
-                        }
-                    }
-                }
-
-                if (previous != null && node != null) {
-                    findPlaceAndPutSync(first, previous, node, newNode);
-                } else {
-                    findPlaceAndPutSync(first, null, first, newNode);
-                }
-            } else if (node.getValue().compareTo(newNode.getValue()) == 1) {
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
 
                 Node<T> next = node.getNext() == null ? null : node.getNext().clone();
 
-                synchronized (previous) {
-                    synchronized (node) {
-                        if (compareValues(previous, node, next, prev, curr, next) && node.getValue().compareTo(newNode.getValue()) == 1) {
-                            newNode.setNext(node);
+                Node<T> finalPrevious = previous;
+                Node<T> finalNode = node;
+                Node<T> finalFirst = first;
 
-                            if (previous == first) {
-                                first = newNode;
-                            } else {
-                                previous.setNext(newNode);
-                            }
+                Node<T> result = listLock.lock(previous, node, node.getNext(), () -> {
+                    if (compareValues(finalPrevious, finalNode, finalNode.getNext(), prev, curr, next) && finalNode.getValue().compareTo(newNode.getValue()) == 0) {
+                        newNode.setNext(finalNode.getNext());
+                        finalNode.setNext(newNode);
 
-                            return first;
-                        }
+                        return finalFirst;
                     }
-                }
+                    return null;
+                });
 
-                if (previous != null && node != null) {
-                    findPlaceAndPutSync(first, previous, node, newNode);
-                } else {
-                    findPlaceAndPutSync(first, null, first, newNode);
-                }
-            } else if (node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
-
-                synchronized (previous) {
-                    synchronized (node) {
-                        if (compareValues(previous, node, null, prev, curr, null) && node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-                            node.setNext(newNode);
-
-                            return first;
-                        }
-                    }
-                }
-
-                if (previous != null && node != null) {
-                    findPlaceAndPutSync(first, previous, node, newNode);
-                } else {
-                    findPlaceAndPutSync(first, null, first, newNode);
-                }
-            }
-
-            previous = node;
-        }
-        return null;
-    }
-
-    public static <T extends Comparable<T>, L extends Lock> Node<T> findPlaceAndPutStriped(Node<T> first, Node<T> previousNode, Node<T> fromNode, Node<T> newNode, Striped<L> striped) {
-        Node<T> previous = previousNode == null ? first : previousNode;
-
-        for (Node<T> node = fromNode; node != null; node = node.getNext()) {
-
-            if (node.getValue().compareTo(newNode.getValue()) == 0) {
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
-
-                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-
-                Lock prevLock = striped.get(previous);
-                Lock currLock = striped.get(node);
-                Lock nextLock = striped.get(node.getNext());
-
-                try {
-                    prevLock.lock();
-                    currLock.lock();
-                    nextLock.lock();
-
-                    if (compareValues(previous, node, next, prev, curr, next) && node.getValue().compareTo(newNode.getValue()) == 0) {
-                        newNode.setNext(node.getNext());
-                        node.setNext(newNode);
-
-                        return first;
-                    }
-                } finally {
-                    prevLock.unlock();
-                    currLock.unlock();
-                    nextLock.unlock();
-                }
-
-                if (previous != null && node != null) {
-                    findPlaceAndPutStriped(first, previous, node, newNode, striped);
-                } else {
-                    findPlaceAndPutStriped(first, null, first, newNode, striped);
-                }
-
-            } else if (node.getValue().compareTo(newNode.getValue()) == 1) {
-
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
-
-                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-
-                Lock prevLock = striped.get(previous);
-                Lock currLock = striped.get(node);
-
-                try {
-                    prevLock.lock();
-                    currLock.lock();
-
-                    if (compareValues(previous, node, next, prev, curr, next) && node.getValue().compareTo(newNode.getValue()) == 1) {
-                        newNode.setNext(node);
-
-                        if (previous == first) {
-                            first = newNode;
-                        } else {
-                            previous.setNext(newNode);
-                        }
-
-                        return first;
-                    }
-                } finally {
-                    prevLock.unlock();
-                    currLock.unlock();
-                }
-
-                if (previous != null && node != null) {
-                    findPlaceAndPutStriped(first, previous, node, newNode, striped);
-                } else {
-                    findPlaceAndPutStriped(first, null, first, newNode, striped);
-                }
-
-            } else if (node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
-
-                Lock prevLock = striped.get(previous);
-                Lock currLock = striped.get(node);
-
-                try {
-                    prevLock.lock();
-                    currLock.lock();
-
-                    if (compareValues(previous, node, null, prev, curr, null) && node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-                        node.setNext(newNode);
-
-                        return first;
-                    }
-                } finally {
-                    prevLock.unlock();
-                    currLock.unlock();
-                }
-
-                if (previous != null && node != null) {
-                    findPlaceAndPutStriped(first, previous, node, newNode, striped);
-                } else {
-                    findPlaceAndPutStriped(first, null, first, newNode, striped);
-                }
-            }
-            previous = node;
-        }
-
-        return null;
-    }
-
-    public static <T> Node<T> findPlaceAndRemoveSync(Node<T> first, Node<T> previousNode, Node<T> fromNode, T value) {
-        Node<T> previous = previousNode == null ? first : previousNode;
-
-        for (Node<T> node = fromNode; node != null; node = node.getNext()) {
-            if (value.equals(node.getValue())) {
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
-
-                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-
-                synchronized (previous) {
-                    synchronized (node) {
-
-                        if (node.getNext() != null) {
-                            synchronized (node.getNext()) {
-                                if (compareValues(previous, node, next, prev, curr, next)) {
-                                    return removeConcreteNode(first, node, previous);
-                                }
-                            }
-                        } else {
-                            if (compareValues(previous, node, next, prev, curr, next)) {
-                                return removeConcreteNode(first, node, previous);
-                            }
-                        }
-                    }
-                }
-
-                if (previous != null && node != null) {
-                    findPlaceAndRemoveSync(first, previous, node, value);
-                } else {
-                    findPlaceAndRemoveSync(first, null, first, value);
-                }
-            }
-            previous = node;
-        }
-        return null;
-    }
-
-    public static <T extends Comparable<T>, L extends Lock> Node<T> findPlaceAndRemoveStriped(Node<T> first, Node<T> previousNode, Node<T> fromNode, T value, Striped<L> striped) {
-        Node<T> previous = previousNode == null ? first : previousNode;
-
-        for (Node<T> node = fromNode; node != null; node = node.getNext()) {
-            if (value.equals(node.getValue())) {
-                Node<T> prev = previous.clone();
-                Node<T> curr = node.clone();
-
-                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
-
-                Lock prevLock = striped.get(previous);
-                Lock currLock = striped.get(node);
-
-                try {
-                    prevLock.lock();
-                    currLock.lock();
-
-                    if (node.getNext() != null) {
-                        Lock nextLock = striped.get(node.getNext());
-
-                        try {
-                            nextLock.lock();
-
-                            if (compareValues(previous, node, next, prev, curr, next)) {
-                                removeConcreteNode(first, node, previous);
-                                return first;
-                            }
-                        } finally {
-                            nextLock.unlock();
-                        }
+                if (result == null) {
+                    if (previous != null) {
+                        findPlaceAndPutConcurrent(first, previous, node, newNode, listLock);
                     } else {
-                        if (compareValues(previous, node, next, prev, curr, next)) {
-                            removeConcreteNode(first, node, previous);
-                            return first;
-                        }
+                        findPlaceAndPutConcurrent(first, null, first, newNode, listLock);
                     }
-                } finally {
-                    prevLock.unlock();
-                    currLock.unlock();
+                }else {
+                    return result;
                 }
+            } else if (node.getValue().compareTo(newNode.getValue()) == 1) {
+                Node<T> prev = previous.clone();
+                Node<T> curr = node.clone();
 
-                if (previous != null && node != null) {
-                    findPlaceAndRemoveStriped(first, previous, node, value, striped);
+                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
+
+                Node<T> finalPrevious = previous;
+                Node<T> finalNode = node;
+
+                Node<T> result = listLock.lock(previous, node, node.getNext(), () -> {
+                    if (compareValues(finalPrevious, finalNode, finalNode.getNext(), prev, curr, next) && finalNode.getValue().compareTo(newNode.getValue()) == 1) {
+                        newNode.setNext(finalNode);
+
+                        Node<T> firstNode = first;
+
+                        if (finalPrevious == first) {
+                            firstNode = newNode;
+                        } else {
+                            finalPrevious.setNext(newNode);
+                        }
+
+                        return firstNode;
+                    }
+                    return null;
+                });
+
+                if (result == null) {
+                    if (node != null) {
+                        findPlaceAndPutConcurrent(first, previous, node, newNode, listLock);
+                    } else {
+                        findPlaceAndPutConcurrent(first, null, first, newNode, listLock);
+                    }
+                }else {
+                    return result;
+                }
+            } else if (node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
+                Node<T> prev = previous.clone();
+                Node<T> curr = node.clone();
+
+                Node<T> finalPrevious = previous;
+                Node<T> finalNode = node;
+
+                Node<T> result = listLock.lock(previous, node, null, () -> {
+                    if (compareValues(finalPrevious, finalNode, null, prev, curr, null) && finalNode.getValue().compareTo(newNode.getValue()) == -1 && finalNode.getNext() == null) {
+                        finalNode.setNext(newNode);
+
+                        return first;
+                    }
+                    return null;
+                });
+
+                if (result == null) {
+                    if (node != null) {
+                        findPlaceAndPutConcurrent(first, previous, node, newNode, listLock);
+                    } else {
+                        findPlaceAndPutConcurrent(first, null, first, newNode, listLock);
+                    }
                 } else {
-                    findPlaceAndRemoveStriped(first, null, first, value, striped);
+                    return result;
+                }
+            }
+
+            previous = node;
+        }
+        return null;
+    }
+
+    public static <T> Node<T> findPlaceAndRemoveConcurrent(Node<T> first, Node<T> previousNode, Node<T> fromNode, T value, ListLock<T> listLock) {
+        Node<T> previous = previousNode == null ? first : previousNode;
+
+        for (Node<T> node = fromNode; node != null; node = node.getNext()) {
+            if (value.equals(node.getValue())) {
+                Node<T> prev = previous.clone();
+                Node<T> curr = node.clone();
+
+                Node<T> next = node.getNext() == null ? null : node.getNext().clone();
+
+                Node<T> finalPrevious = previous;
+                Node<T> finalNode = node;
+                Node<T> result = listLock.lock(previous, node, null, () -> {
+                    if (compareValues(finalPrevious, finalNode, finalNode.getNext(), prev, curr, next)) {
+                        return removeConcreteNode(first, finalNode, finalPrevious);
+                    }
+                    return null;
+                });
+
+                if (result == null) {
+                    if (node != null) {
+                        findPlaceAndRemoveConcurrent(first, previous, node, value, listLock);
+                    } else {
+                        findPlaceAndRemoveConcurrent(first, null, first, value, listLock);
+                    }
+                } else {
+                    return result;
                 }
             }
             previous = node;
@@ -334,7 +191,7 @@ public class ListActions {
         return null;
     }
 
-    public static <T extends Comparable<T>> Node<T> removeByIndexSync(int index, Node<T> first) {
+    public static <T extends Comparable<T>> Node<T> removeByIndexConcurrent(int index, Node<T> first, ListLock<T> listLock) {
         Node<T> nodeToRemove = first;
         Node<T> previous = first;
 
@@ -347,52 +204,22 @@ public class ListActions {
         Node<T> expectedNode = nodeToRemove.clone();
         Node<T> expectedNext = nodeToRemove.getNext().clone();
 
-        synchronized (previous) {
-            synchronized (nodeToRemove) {
-                synchronized (nodeToRemove.getNext()) {
-                    if (ListActions.compareValues(previous, nodeToRemove, nodeToRemove.getNext(), expectedPrevious, expectedNode, expectedNext)) {
-                        return removeConcreteNode(first, nodeToRemove, previous);
-                    }
-                }
+        Node<T> finalPrevious = previous;
+        Node<T> finalNodeToRemove = nodeToRemove;
+        Node<T> finalNodeToRemove1 = nodeToRemove;
+
+        Node<T> result = listLock.lock(previous, nodeToRemove, null, () -> {
+            if (compareValues(finalPrevious, finalNodeToRemove, finalNodeToRemove1.getNext(), expectedPrevious, expectedNode, expectedNext)) {
+                return removeConcreteNode(first, finalNodeToRemove, finalPrevious);
             }
+            return null;
+        });
+
+        if (result == null) {
+            return removeByIndexConcurrent(index, first, listLock);
         }
 
-        return removeByIndexSync(index, first);
-    }
-
-    public static <T extends Comparable<T>, L extends Lock> Node<T> removeByIndexStriped(int index, Node<T> first, Striped<L> striped) {
-        Node<T> nodeToRemove = first;
-        Node<T> previous = first;
-
-        for (int i = 0; i < index; i++) {
-            previous = nodeToRemove;
-            nodeToRemove = nodeToRemove.getNext();
-        }
-
-        Node<T> expectedPrevious = previous.clone();
-        Node<T> expectedNode = nodeToRemove.clone();
-        Node<T> expectedNext = nodeToRemove.getNext().clone();
-
-        Lock prevLock = striped.get(previous);
-        Lock currLock = striped.get(nodeToRemove);
-        Lock nextLock = striped.get(nodeToRemove.getNext());
-
-        try {
-            prevLock.lock();
-            currLock.lock();
-            nextLock.lock();
-
-            if (ListActions.compareValues(previous, nodeToRemove, nodeToRemove.getNext(), expectedPrevious, expectedNode, expectedNext)) {
-                return removeConcreteNode(first, nodeToRemove, previous);
-            }
-
-        } finally {
-            prevLock.unlock();
-            currLock.unlock();
-            nextLock.unlock();
-        }
-
-        return removeByIndexStriped(index, first, striped);
+        return  result;
     }
 
     public static <T> Node<T> removeConcreteNode(Node<T> first, Node<T> node, Node<T> previous) {
@@ -455,10 +282,5 @@ public class ListActions {
         }
 
         return node;
-    }
-
-    public static void checkNotNull(Object v) {
-        if (v == null)
-            throw new NullPointerException();
     }
 }
