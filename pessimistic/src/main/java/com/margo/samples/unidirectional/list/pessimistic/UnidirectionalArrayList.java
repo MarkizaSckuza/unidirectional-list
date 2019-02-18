@@ -1,16 +1,16 @@
 package com.margo.samples.unidirectional.list.pessimistic;
 
+import com.margo.samples.unidirectional.list.common.AbstractUnidirectionalArrayList;
 import com.margo.samples.unidirectional.list.common.ListActions;
-import com.margo.samples.unidirectional.list.common.node.Node;
-import com.margo.samples.unidirectional.list.common.UnidirectionalList;
 import com.margo.samples.unidirectional.list.common.lock.ListLock;
 import com.margo.samples.unidirectional.list.common.lock.SynchronizedListLock;
+import com.margo.samples.unidirectional.list.common.node.Node;
 import com.margo.samples.unidirectional.list.common.validator.ListValidator;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.*;
 
-public class UnidirectionalArrayList<T extends Comparable<T>> implements UnidirectionalList<T> {
+public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUnidirectionalArrayList<T> {
     private volatile Node<T> first;
     private int size;
     private int modCount;
@@ -28,25 +28,11 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
         return size;
     }
 
-    public boolean isEmpty() {
-        return size == 0;
-    }
-
-    public boolean contains(Object o) {
-        ListValidator.validateObjectNotNull(o);
-
-        return indexOf(o) != -1;
-    }
-
     public Iterator<T> iterator() {
         return new Iter();
     }
 
     public Object[] toArray() {
-        return createArray();
-    }
-
-    private Object[] createArray() {
         return ListActions.createArray(first, size);
     }
 
@@ -98,49 +84,6 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
             }
         }
 
-        return false;
-    }
-
-    public boolean containsAll(Collection<?> c) {
-        ListValidator.validateObjectNotNull(c);
-
-        for (Object e : c)
-            if (!contains(e))
-                return false;
-        return true;
-    }
-
-    public boolean addAll(Collection<? extends T> c) {
-        ListValidator.validateObjectNotNull(c);
-
-        Object[] array = c.toArray();
-        boolean result = false;
-
-        for (Object o : array) {
-            result = add((T) o);
-        }
-
-        return result;
-    }
-
-    public boolean addAll(int index, Collection<? extends T> c) {
-        throw new NotImplementedException();
-    }
-
-    public boolean removeAll(Collection<?> c) {
-        ListValidator.validateObjectNotNull(c);
-
-        Object[] array = c.toArray();
-        boolean result = false;
-
-        for (Object o : array) {
-            result = remove(o);
-        }
-
-        return result;
-    }
-
-    public boolean retainAll(Collection<?> c) {
         return false;
     }
 

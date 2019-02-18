@@ -1,17 +1,17 @@
 package com.margo.samples.unidirectional.list.fine.grained;
 
-import com.margo.samples.unidirectional.list.common.*;
+import com.margo.samples.unidirectional.list.common.AbstractUnidirectionalArrayList;
+import com.margo.samples.unidirectional.list.common.ListActions;
 import com.margo.samples.unidirectional.list.common.lock.ListLock;
 import com.margo.samples.unidirectional.list.common.lock.Striped;
 import com.margo.samples.unidirectional.list.common.lock.StripedListLock;
 import com.margo.samples.unidirectional.list.common.node.Node;
 import com.margo.samples.unidirectional.list.common.validator.ListValidator;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class UnidirectionalArrayList<T extends Comparable<T>> implements UnidirectionalList<T> {
+public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUnidirectionalArrayList<T> {
     private static final int DEFAULT_STRIPES_SIZE = 32;
 
     private volatile Node<T> first;
@@ -32,25 +32,11 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
         return size;
     }
 
-    public boolean isEmpty() {
-        return size == 0;
-    }
-
-    public boolean contains(Object o) {
-        ListValidator.validateObjectNotNull(o);
-
-        return indexOf(o) != -1;
-    }
-
     public Iterator<T> iterator() {
         return new Iter();
     }
 
     public Object[] toArray() {
-        return createArray();
-    }
-
-    private Object[] createArray() {
         return ListActions.createArray(first, size);
     }
 
@@ -125,49 +111,6 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
         return false;
     }
 
-    public boolean containsAll(Collection<?> c) {
-        ListValidator.validateObjectNotNull(c);
-
-        for (Object e : c)
-            if (!contains(e))
-                return false;
-        return true;
-    }
-
-    public boolean addAll(Collection<? extends T> c) {
-        ListValidator.validateObjectNotNull(c);
-
-        Object[] array = c.toArray();
-        boolean result = false;
-
-        for (Object o : array) {
-            result = add((T) o);
-        }
-
-        return result;
-    }
-
-    public boolean addAll(int index, Collection<? extends T> c) {
-        throw new NotImplementedException();
-    }
-
-    public boolean removeAll(Collection<?> c) {
-        ListValidator.validateObjectNotNull(c);
-
-        Object[] array = c.toArray();
-        boolean result = false;
-
-        for (Object o : array) {
-            result = remove(o);
-        }
-
-        return result;
-    }
-
-    public boolean retainAll(Collection<?> c) {
-        return false;
-    }
-
     public synchronized void clear() {
         ListActions.clear(first);
         size = 0;
@@ -177,14 +120,6 @@ public class UnidirectionalArrayList<T extends Comparable<T>> implements Unidire
     public T get(int index) {
         ListValidator.validateIndex(index, size);
         return ListActions.getNodeWithIndex(index, first).getValue();
-    }
-
-    public T set(int index, T element) {
-        throw new NotImplementedException();
-    }
-
-    public void add(int index, T element) {
-        throw new NotImplementedException();
     }
 
     public T remove(int index) {
