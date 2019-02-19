@@ -105,7 +105,7 @@ public class ConcurrentTests {
         executor.shutdown();
         executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
 
-        Thread.sleep(50);
+        Thread.sleep(500);
 
         Object[] array = list.toArray();
         System.out.println(Arrays.toString(array));

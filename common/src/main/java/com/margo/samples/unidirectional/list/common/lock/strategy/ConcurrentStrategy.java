@@ -1,63 +1,20 @@
-package com.margo.samples.unidirectional.list.common;
+package com.margo.samples.unidirectional.list.common.lock.strategy;
 
 import com.margo.samples.unidirectional.list.common.lock.ListLock;
 import com.margo.samples.unidirectional.list.common.node.Node;
 
-public class ListActions {
+import java.util.concurrent.locks.Lock;
 
-//    public static <T> Object[] createArray(Node<T> first, int size) {
-//        Object[] array;
-//
-//        array = new Object[size];
-//        int i = 0;
-//
-//        for (Node<T> node = first; node != null && i < array.length; node = node.getNext()) {
-//            array[i++] = node.getValue();
-//        }
-//
-//        return array;
-//    }
+public class ConcurrentStrategy<T extends Comparable<T>, L extends Lock> extends AbstractBaseStrategy<T> {
 
-//    public static <T> void clear(Node<T> first) {
-//        for (Node<T> node = first; node != null; ) {
-//            Node<T> next = node.getNext();
-//            node.setNext(null);
-//            node = next;
-//        }
-//    }
+    private ListLock<T> listLock;
 
-    public static <T extends Comparable<T>> Node<T> findPlaceAndPut(Node<T> first, Node<T> newNode) {
-        Node<T> previous = first;
-
-        for (Node<T> node = first; node != null; node = node.getNext()) {
-            if (node.getValue().compareTo(newNode.getValue()) == 0) {
-                newNode.setNext(node.getNext());
-                node.setNext(newNode);
-
-                return first;
-            } else if (node.getValue().compareTo(newNode.getValue()) == 1) {
-
-                newNode.setNext(node);
-
-                if (previous == first) {
-                    first = newNode;
-                } else {
-                    previous.setNext(newNode);
-                }
-
-                return first;
-            } else if (node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
-                node.setNext(newNode);
-
-                return first;
-            }
-            previous = node;
-        }
-
-        return null;
+    public ConcurrentStrategy(ListLock<T> listLock) {
+        this.listLock = listLock;
     }
 
-    public static <T extends Comparable<T>> Node<T> findPlaceAndPutConcurrent(Node<T> first, Node<T> previousNode, Node<T> fromNode, Node<T> newNode, ListLock<T> listLock) {
+    @Override
+    public Node<T> add(Node<T> first, Node<T> previousNode, Node<T> fromNode, Node<T> newNode) {
         Node<T> previous = previousNode == null ? first : previousNode;
 
         for (Node<T> node = fromNode; node != null; node = node.getNext()) {
@@ -83,11 +40,11 @@ public class ListActions {
 
                 if (result == null) {
                     if (previous != null) {
-                        findPlaceAndPutConcurrent(first, previous, node, newNode, listLock);
+                        add(first, previous, node, newNode);
                     } else {
-                        findPlaceAndPutConcurrent(first, null, first, newNode, listLock);
+                        add(first, null, first, newNode);
                     }
-                }else {
+                } else {
                     return result;
                 }
             } else if (node.getValue().compareTo(newNode.getValue()) == 1) {
@@ -118,11 +75,11 @@ public class ListActions {
 
                 if (result == null) {
                     if (node != null) {
-                        findPlaceAndPutConcurrent(first, previous, node, newNode, listLock);
+                        add(first, previous, node, newNode);
                     } else {
-                        findPlaceAndPutConcurrent(first, null, first, newNode, listLock);
+                        add(first, null, first, newNode);
                     }
-                }else {
+                } else {
                     return result;
                 }
             } else if (node.getValue().compareTo(newNode.getValue()) == -1 && node.getNext() == null) {
@@ -143,9 +100,9 @@ public class ListActions {
 
                 if (result == null) {
                     if (node != null) {
-                        findPlaceAndPutConcurrent(first, previous, node, newNode, listLock);
+                        add(first, previous, node, newNode);
                     } else {
-                        findPlaceAndPutConcurrent(first, null, first, newNode, listLock);
+                        add(first, null, first, newNode);
                     }
                 } else {
                     return result;
@@ -157,7 +114,8 @@ public class ListActions {
         return null;
     }
 
-    public static <T> Node<T> findPlaceAndRemoveConcurrent(Node<T> first, Node<T> previousNode, Node<T> fromNode, T value, ListLock<T> listLock) {
+    @Override
+    public Node<T> remove(Node<T> first, Node<T> previousNode, Node<T> fromNode, T value) {
         Node<T> previous = previousNode == null ? first : previousNode;
 
         for (Node<T> node = fromNode; node != null; node = node.getNext()) {
@@ -178,9 +136,9 @@ public class ListActions {
 
                 if (result == null) {
                     if (node != null) {
-                        findPlaceAndRemoveConcurrent(first, previous, node, value, listLock);
+                        remove(first, previous, node, value);
                     } else {
-                        findPlaceAndRemoveConcurrent(first, null, first, value, listLock);
+                        remove(first, null, first, value);
                     }
                 } else {
                     return result;
@@ -191,7 +149,8 @@ public class ListActions {
         return null;
     }
 
-    public static <T extends Comparable<T>> Node<T> removeByIndexConcurrent(int index, Node<T> first, ListLock<T> listLock) {
+    @Override
+    public Node<T> removeByIndex(int index, Node<T> first) {
         Node<T> nodeToRemove = first;
         Node<T> previous = first;
 
@@ -216,71 +175,9 @@ public class ListActions {
         });
 
         if (result == null) {
-            return removeByIndexConcurrent(index, first, listLock);
+            return removeByIndex(index, first);
         }
 
-        return  result;
-    }
-
-    public static <T> Node<T> removeConcreteNode(Node<T> first, Node<T> node, Node<T> previous) {
-        if (node == previous && node.getNext() != null) {
-            first = node.getNext();
-        } else {
-            previous.setNext(node.getNext());
-        }
-        return first;
-    }
-
-    public static <T> boolean compareValues(Node<T> previous, Node<T> current, Node<T> next, Node<T> expectedPrevious, Node<T> expectedCurrent, Node<T> expectedNext) {
-        if (previous.equals(current)) {
-            return previous.equals(expectedPrevious) && (previous.getNext() == null) || (previous.getNext().equals(expectedPrevious.getNext()) && current.equals(expectedCurrent) && (next == null && expectedNext == null) || next.equals(expectedNext));
-        } else {
-            return previous.equals(expectedPrevious) && previous.getNext().equals(expectedCurrent) && current.equals(expectedCurrent) && (next == null && expectedNext == null) || next.equals(expectedNext);
-        }
-    }
-
-    public static <T> int indexOf(Object o, Node<T> first) {
-        int index = 0;
-
-        if (o == null) {
-            return -1;
-        } else {
-            for (Node<T> node = first; node != null; node = node.getNext()) {
-                if (o.equals(node.getValue()))
-                    return index;
-                index++;
-            }
-        }
-
-        return -1;
-    }
-
-    public static <T> int lastIndexOf(Object o, Node<T> first) {
-        int index = 0;
-        int lastIndex = -1;
-
-        if (o == null) {
-            return -1;
-        } else {
-            for (Node<T> node = first; node != null; node = node.getNext()) {
-                if (o.equals(node.getValue()))
-                    lastIndex = index;
-                index++;
-            }
-        }
-
-        return lastIndex;
-    }
-
-    public static <T> Node<T> getNodeWithIndex(int index, Node<T> first) {
-        Node<T> node;
-
-        node = first;
-
-        for (int i = 0; i < index; i++) {
-            node = node.getNext();
-        }
-
-        return node;
+        return result;
     }
 }

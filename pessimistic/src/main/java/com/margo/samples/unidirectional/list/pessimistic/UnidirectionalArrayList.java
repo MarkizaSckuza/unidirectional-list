@@ -1,134 +1,26 @@
 package com.margo.samples.unidirectional.list.pessimistic;
 
-import com.margo.samples.unidirectional.list.common.AbstractUnidirectionalArrayList;
+import com.margo.samples.unidirectional.list.common.AbstractConcurrentUnidirectionalArrayList;
 import com.margo.samples.unidirectional.list.common.ListActions;
-import com.margo.samples.unidirectional.list.common.lock.ListLock;
 import com.margo.samples.unidirectional.list.common.lock.SynchronizedListLock;
+import com.margo.samples.unidirectional.list.common.lock.strategy.ConcurrentStrategy;
+import com.margo.samples.unidirectional.list.common.lock.strategy.Strategy;
 import com.margo.samples.unidirectional.list.common.node.Node;
 import com.margo.samples.unidirectional.list.common.validator.ListValidator;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.*;
 
-public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUnidirectionalArrayList<T> {
-    private volatile Node<T> first;
-    private int size;
-    private int modCount;
-
-    private ListLock<T> listLock;
+public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractConcurrentUnidirectionalArrayList<T> {
 
     public UnidirectionalArrayList() {
         size = 0;
         modCount = 0;
 
-        listLock = new SynchronizedListLock<>();
-    }
-
-    public int size() {
-        return size;
+        strategy = new ConcurrentStrategy<>(new SynchronizedListLock<T>());
     }
 
     public Iterator<T> iterator() {
         return new Iter();
-    }
-
-    public Object[] toArray() {
-        return ListActions.createArray(first, size);
-    }
-
-    public <T1> T1[] toArray(T1[] a) {
-        return null;
-    }
-
-    public boolean add(T t) {
-        ListValidator.validateObjectNotNull(t);
-
-        Node<T> node = new Node<>(t);
-
-        if (first == null) {
-            synchronized (this) {
-                if (first == null) {
-                    first = node;
-
-                    size++;
-                    modCount++;
-                    return true;
-                }
-            }
-        } else {
-            Node<T> result = ListActions.findPlaceAndPutConcurrent(first, null, first, node, listLock);
-            if (result != null) {
-                synchronized (this) {
-                    size++;
-                    modCount++;
-
-                    first = result;
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public boolean remove(Object o) {
-        ListValidator.validateObjectNotNull(o);
-        Node<T> result = ListActions.findPlaceAndRemoveConcurrent(first, null, first, (T) o, listLock);
-
-        if (result != null) {
-            synchronized (this) {
-                first = result;
-
-                size--;
-                modCount++;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public synchronized void clear() {
-        ListActions.clear(first);
-        size = 0;
-        modCount++;
-    }
-
-    public T get(int index) {
-        ListValidator.validateIndex(index, size);
-        return ListActions.getNodeWithIndex(index, first).getValue();
-    }
-
-    public T set(int index, T element) {
-        throw new NotImplementedException();
-    }
-
-    public void add(int index, T element) {
-        throw new NotImplementedException();
-    }
-
-    public T remove(int index) {
-        ListValidator.validateIndex(index, size);
-
-        Node<T> result = ListActions.removeByIndexConcurrent(index, first, listLock);
-
-        if (result != null) {
-            synchronized (this) {
-                first = result;
-
-                size--;
-                modCount++;
-            }
-        }
-
-        return null;
-    }
-
-    public int indexOf(Object o) {
-        return ListActions.indexOf(o, first);
-    }
-
-    public int lastIndexOf(Object o) {
-        return ListActions.lastIndexOf(o, first);
     }
 
     public ListIterator<T> listIterator() {
@@ -142,6 +34,10 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
 
     public List<T> subList(int fromIndex, int toIndex) {
         return null;
+    }
+
+    public void setStrategy(Strategy<T> strategy) {
+        this.strategy = strategy;
     }
 
     private class Iter implements Iterator<T> {
@@ -275,10 +171,4 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
                 throw new ConcurrentModificationException();
         }
     }
-
-    private static void checkNotNull(Object v) {
-        if (v == null)
-            throw new NullPointerException();
-    }
 }
-

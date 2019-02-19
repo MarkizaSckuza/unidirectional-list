@@ -2,6 +2,8 @@ package com.margo.samples.unidirectional.list.optimistic;
 
 import com.margo.samples.unidirectional.list.common.AbstractUnidirectionalArrayList;
 import com.margo.samples.unidirectional.list.common.ListActions;
+import com.margo.samples.unidirectional.list.common.lock.strategy.SimpleStrategy;
+import com.margo.samples.unidirectional.list.common.lock.strategy.Strategy;
 import com.margo.samples.unidirectional.list.common.node.Node;
 import com.margo.samples.unidirectional.list.common.validator.ListValidator;
 
@@ -9,36 +11,21 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUnidirectionalArrayList<T> {
-    private volatile Node<T> first;
-    private int size;
-    private int modCount;
-
     private Queue<Operation> operations;
 
     public UnidirectionalArrayList() {
         size = 0;
         modCount = 0;
         operations = new ConcurrentLinkedQueue<>();
+        strategy = new SimpleStrategy<>();
 
         Thread t = new Thread(new ActionResolver());
         t.setPriority(10);
         t.start();
     }
 
-    public int size() {
-        return size;
-    }
-
     public Iterator<T> iterator() {
         return new Iter();
-    }
-
-    public Object[] toArray() {
-        return ListActions.createArray(first, size);
-    }
-
-    public <T1> T1[] toArray(T1[] a) {
-        return null;
     }
 
     public boolean add(T t) {
@@ -47,26 +34,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
     }
 
     private boolean addToList(T t) {
-        Node<T> newNode = new Node<>(t);
-
-        if (first == null) {
-            first = newNode;
-
-            size++;
-            modCount++;
-
-            return true;
-        } else {
-            Node<T> result = ListActions.findPlaceAndPut(first, newNode);
-            if (result != null) {
-                size++;
-                modCount++;
-
-                first = result;
-                return true;
-            }
-            return false;
-        }
+        return super.add(t);
     }
 
     public boolean remove(Object o) {
@@ -74,44 +42,11 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
     }
 
     private boolean findPlaceAndRemove(Object o) {
-        Node<T> previous = first;
-        for (Node<T> node = first; node != null; node = node.getNext()) {
-            if (o.equals(node.getValue())) {
-                remove(node, previous);
-                return true;
-            }
-            previous = node;
-        }
-        return false;
+        return super.remove(o);
     }
 
-    private T remove(Node<T> node, Node<T> previous) {
-        if (node == previous && node.getNext() != null) {
-            first = node.getNext();
-        } else {
-            previous.setNext(node.getNext());
-        }
-
-        size--;
-        modCount++;
-
-        return node.getValue();
-    }
-
-    private void removeByIndex(Integer index) {
-        ListValidator.validateIndex(index, size);
-
-        Node<T> previous = first;
-        int i = 0;
-        for (Node<T> node = first; node != null; node = node.getNext()) {
-            if (i == index) {
-                remove(node, previous);
-                return;
-            } else {
-                i++;
-                previous = node;
-            }
-        }
+    private void removeByIndex(int index) {
+        super.remove(index);
     }
 
     public boolean addAll(Collection<? extends T> c) {
@@ -121,11 +56,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
     }
 
     private void addAllToList(Collection<? extends T> c) {
-        Object[] array = c.toArray();
-
-        for (Object o : array) {
-            add((T) o);
-        }
+        super.addAll(c);
     }
 
     public boolean removeAll(Collection<?> c) {
@@ -133,27 +64,15 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
     }
 
     private void removeAllFromList(Collection<?> c) {
-        Object[] array = c.toArray();
-
-        for (Object o : array) {
-            remove(o);
-        }
+        super.removeAll(c);
     }
-
 
     public void clear() {
         operations.add(new Operation(Action.CLEAR, null));
     }
 
     private void clearList() {
-        ListActions.clear(first);
-        size = 0;
-        modCount++;
-    }
-
-    public T get(int index) {
-        ListValidator.validateIndex(index, size);
-        return ListActions.getNodeWithIndex(index, first).getValue();
+        super.clear();
     }
 
     public T remove(int index) {
@@ -161,12 +80,8 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
         return null;
     }
 
-    public int indexOf(Object o) {
-        return ListActions.indexOf(o, first);
-    }
-
-    public int lastIndexOf(Object o) {
-        return ListActions.lastIndexOf(o, first);
+    public void setStrategy(Strategy<T> strategy) {
+        this.strategy = strategy;
     }
 
     public ListIterator<T> listIterator() {
@@ -250,7 +165,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
                 throw new IllegalStateException();
 
             Node<T> lastNext = lastReturned.getNext();
-            UnidirectionalArrayList.this.remove(lastReturned, previous);
+            UnidirectionalArrayList.this.removeConcreteNode(lastReturned, previous);
             if (next == lastReturned)
                 next = lastNext;
             else
@@ -315,7 +230,7 @@ public class UnidirectionalArrayList<T extends Comparable<T>> extends AbstractUn
                 throw new IllegalStateException();
 
             Node<T> lastNext = lastReturned.getNext();
-            UnidirectionalArrayList.this.remove(lastReturned, previous);
+            UnidirectionalArrayList.this.removeConcreteNode(lastReturned, previous);
             if (next == lastReturned)
                 next = lastNext;
             else
